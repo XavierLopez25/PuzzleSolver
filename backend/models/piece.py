@@ -4,22 +4,22 @@ from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
 
-# Modelo base que contiene los atributos comunes de una pieza (Piece)
+# Modelo base con los campos comunes de una pieza de puzzle
 class PieceBase(BaseModel):
-    sequenceNumber: int  
-    pieceOrientation: int  
-    group: int  
+    sequenceNumber: int        # Número secuencial que indica la posición de la pieza
+    pieceOrientation: int      # Orientación de la pieza en grados (ejemplo: 90°)
+    group: int                 # Grupo al que pertenece la pieza (ejemplo: grupo 3)
 
-# Modelo utilizado al crear una nueva pieza (hereda todos los campos de PieceBase)
+# Modelo usado para crear una nueva pieza
 class PieceCreate(PieceBase):
     """Datos necesarios al crear una Piece."""
-    pass  
+    pass
 
-# Modelo utilizado para actualizar parcialmente una pieza existente
+# Modelo usado para actualizar una pieza existente
 class PieceUpdate(BaseModel):
-    pieceOrientation: Optional[int]  # Se puede actualizar la orientación de la pieza
-    group: Optional[int]  # Se puede actualizar el grupo al que pertenece
+    pieceOrientation: Optional[int]  # Permite actualizar la orientación
+    group: Optional[int]             # Permite actualizar el grupo
 
-# Modelo utilizado para leer o devolver los datos de una pieza
+# Modelo usado para leer una pieza (incluye el ID único)
 class PieceRead(PieceBase):
-    pieceId: UUID  
+    pieceId: UUID  # Identificador único de la pieza
