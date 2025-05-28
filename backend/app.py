@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI
 from services.neo4j import get_driver, close_driver
+from routers import pieces, puzzles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,3 +45,6 @@ async def shutdown_event():
 @app.get("/ping")
 async def ping():
     return {"message": "pong"}
+
+app.include_router(pieces.router)
+app.include_router(puzzles.router)
