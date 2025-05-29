@@ -63,16 +63,23 @@ def get_puzzle(
 
 @router.get("/", response_model=List[PuzzleRead])
 def list_puzzles():
-    """Lista todos los puzzles."""
+    """Lista todos los puzzles con sus propiedades correctamente tipadas."""
     with get_session() as session:
         result = session.run(
             """
             MATCH (p:Puzzle)
-            RETURN p {.*, puzzleId: p.puzzleId} AS p
+            WHERE p.puzzleId IS NOT NULL
+            RETURN
+              p.puzzleId            AS puzzleId,
+              p.puzzleTypeIsRegular AS puzzleTypeIsRegular,
+              p.puzzleTheme         AS puzzleTheme,
+              p.puzzleBrand         AS puzzleBrand,
+              p.puzzlePieceQty      AS puzzlePieceQty,
+              p.puzzleMaterial      AS puzzleMaterial,
+              p.row_size            AS row_size
             """
         )
-        return [PuzzleRead(**r["p"]) for r in result]
-
+        return [PuzzleRead(**record) for record in result]
 
 @router.patch("/{puzzle_id}", response_model=PuzzleRead)
 def update_puzzle(
