@@ -1,5 +1,5 @@
 streamlit
-pydatic
+pydantic
 fastapi
 neo4j
 uvicorn
