@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(__file__))
 import logging
 from fastapi import FastAPI
 from services.neo4j import get_driver, close_driver
-from routers import pieces, puzzles
+from routers import pieces, puzzles, solver
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,3 +51,4 @@ async def ping():
 
 app.include_router(pieces.router)
 app.include_router(puzzles.router)
+app.include_router(solver.router)

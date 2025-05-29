@@ -9,10 +9,11 @@ def fetch_puzzle_and_pieces(puzzle_id: str):
     """
     with get_session() as session:
         record = session.run(
-            """
-            MATCH (p:Puzzle {puzzleId: $puzzle_id})-[:HAS_PIECE]->(piece:Piece)
-            RETURN p, collect(piece) AS pieces
-            """,
+                """
+    MATCH (p:Puzzle {puzzleId: $puzzle_id})
+    OPTIONAL MATCH (p)-[:HAS_PIECE]->(piece)
+    RETURN p, collect(piece) AS pieces
+    """,
             puzzle_id=puzzle_id
         ).single()
 
@@ -30,6 +31,13 @@ def fetch_puzzle_and_pieces(puzzle_id: str):
 
         return puzzle, pieces
 
+
+ORIENTATION_HINT = {
+    0:   "gira la pieza de forma que la flecha apunte hacia arriba",
+    90:  "gira la pieza de forma que la flecha apunte hacia la derecha",
+    180: "gira la pieza de forma que la flecha apunte hacia abajo",
+    270: "gira la pieza de forma que la flecha apunte hacia la izquierda",
+}
 
 def solve_regular(puzzle: dict, pieces: list) -> list:
     """
@@ -57,25 +65,23 @@ def solve_regular(puzzle: dict, pieces: list) -> list:
         col = (seq - 1) % column_size + 1
         if not piece:
             instructions.append(
-                f"Pieza {seq}: falta esta pieza en ({row}, {col}). Continúa con la siguiente posición."
+                f"Pieza {seq}: falta esta pieza en la columna {col}, fila {row}. Continúa con la siguiente posición."
             )
         elif piece.get('status') != 'present':
             instructions.append(
-                f"Pieza {seq}: marcada como faltante en ({row}, {col}). Continúa con la siguiente."
+                f"Pieza {seq}: está marcada como faltante en la columna {col}, fila {row}. Continúa con la siguiente."
             )
         else:
+            orientation = piece.get('pieceOrientation', 0)
+            hint = ORIENTATION_HINT.get(orientation, f"orientación desconocida ({orientation}°)")
             instructions.append(
-                f"Pieza {seq}: colócala en ({row}, {col}) con orientación {piece['pieceOrientation']}°."
+                f"Pieza {seq}: colócala en la columna {col}, fila {row} y {hint}."
             )
 
     return instructions
 
 
 def solve_irregular(puzzle: dict, pieces: list) -> list:
-    """
-    Genera instrucciones agrupadas para armar un puzzle irregular, señalando piezas faltantes.
-    """
-    # Agrupar por 'group'
     grouped = defaultdict(list)
     for piece in pieces:
         grouped[piece['group']].append(piece)
@@ -89,14 +95,16 @@ def solve_irregular(puzzle: dict, pieces: list) -> list:
         f"Rompecabezas irregular dividido en {len(grouped)} grupos (total {total} piezas, {missing_count} faltantes)."
     )
 
-    for group_id, grp in grouped.items():
-        instructions.append(f"Grupo {group_id}:")
-        for piece in sorted(grp, key=lambda p: p['sequenceNumber']):
+    for group_id, grp in sorted(grouped.items()):
+        instructions.append(f"Grupo {group_id} ({len(grp)} piezas):")
+        for piece in sorted(grp, key=lambda p: p.get("sequenceNumber", 0)):
             seq = piece['sequenceNumber']
             if piece.get('status') != 'present':
-                instructions.append(f"  - Pieza {seq}: falta esta pieza.")
+                instructions.append(f"- Pieza {seq} del grupo {group_id}: falta esta pieza.")
             else:
-                instructions.append(f"  - Pieza {seq}: orientación {piece['pieceOrientation']}°")
+                orient = piece.get('pieceOrientation', 0)
+                orient_text = ORIENTATION_HINT.get(orient, f"orientación {orient}°")
+                instructions.append(f"- Pieza {seq} del grupo {group_id}: {orient_text}.")
 
     return instructions
 
