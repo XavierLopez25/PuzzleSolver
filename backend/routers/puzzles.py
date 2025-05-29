@@ -121,7 +121,7 @@ async def list_puzzles():
         return puzzles
 
 # UPDATE Puzzle
-@router.put("/{puzzle_id}", response_model=PuzzleRead)
+@router.patch("/{puzzle_id}", response_model=PuzzleRead)
 async def update_puzzle(puzzle_id: UUID, puzzle: PuzzleUpdate):
     # Para update parcial, construimos dinámicamente el SET
     set_clauses = []
