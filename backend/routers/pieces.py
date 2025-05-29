@@ -1,100 +1,149 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path
+from uuid import UUID
 from typing import List
 from models.piece import PieceCreate, PieceRead, PieceUpdate
 from services.neo4j import get_session
 
-router = APIRouter(prefix="/pieces", tags=["Pieces"])
+router = APIRouter(prefix="/puzzle/{puzzle_id}/pieces", tags=["Pieces"])
 
 
 @router.post("/bulk", response_model=List[PieceRead])
-def create_pieces_bulk(puzzle_id: str, pieces: List[PieceCreate]):
+def create_pieces_bulk(
+    puzzle_id: UUID,
+    pieces: List[PieceCreate]
+):
     """
     Crea varias piezas en un solo request.
     - Verifica que el Puzzle exista.
-    - Crea nodos Piece y relaciones (Puzzle)-[:HAS_PIECE]->(Piece).
+    - Crea nodos Piece, relaciones y retorna las piezas creadas.
     """
-    created_pieces = []
+    created = []
     with get_session() as session:
-        puzzle_exists = session.run(
-            "MATCH (p:Puzzle {puzzleId: $puzzle_id}) RETURN p",
-            puzzle_id=puzzle_id
-        ).single()
+        # 1) validar que exista el puzzle
+        if not session.run(
+            "MATCH (p:Puzzle {puzzleId:$id}) RETURN p",
+            {"id": str(puzzle_id)}
+        ).single():
+            raise HTTPException(status_code=404, detail="Puzzle no encontrado")
 
-        if not puzzle_exists:
-            raise HTTPException(status_code=404, detail="Puzzle no encontrado.")
-
-        for piece in pieces:
-            result = session.run("""
+        # 2) crear cada pieza y relacionarla
+        for pc in pieces:
+            rec = session.run(
+                """
                 MATCH (p:Puzzle {puzzleId: $puzzle_id})
                 CREATE (piece:Piece {
-                    pieceId: randomUUID(),
-                    sequenceNumber: $sequenceNumber,
-                    pieceOrientation: $pieceOrientation,
-                    group: $group
+                  pieceId:          randomUUID(),
+                  sequenceNumber:   $sequenceNumber,
+                  pieceOrientation: $pieceOrientation,
+                  group:            $group,
+                  status:           $status
                 })
-                RETURN piece
-            """, puzzle_id=puzzle_id, **piece.dict()).single()
+                MERGE (p)-[:HAS_PIECE]->(piece)
+                RETURN piece {.*, puzzleId: p.puzzleId} AS piece
+                """,
+                {**pc.model_dump(), "puzzle_id": str(puzzle_id)}
+            ).single()
 
-            created_pieces.append(PieceRead(**dict(result["piece"])))
+            created.append(PieceRead(**rec["piece"]))
 
-    return created_pieces
+    return created
 
 
 @router.get("/", response_model=List[PieceRead])
-def list_pieces(puzzle_id: str):
+def list_pieces(
+    puzzle_id: UUID = Path(..., description="UUID del puzzle")
+):
     """Devuelve todas las piezas de un Puzzle dado."""
     with get_session() as session:
-        result = session.run("""
-            MATCH (p:Puzzle {puzzleId: $puzzle_id})-[:HAS_PIECE]->(piece:Piece)
-            RETURN piece
-        """, puzzle_id=puzzle_id)
-
-        return [
-            PieceRead(**dict(record["piece"]))
-            for record in result
-        ]
+        result = session.run(
+            """
+            MATCH (p:Puzzle {puzzleId: $puzzle_id})
+                  -[:HAS_PIECE]->(piece:Piece)
+            RETURN piece {.*, puzzleId: p.puzzleId} AS piece
+            """,
+            {"puzzle_id": str(puzzle_id)}
+        )
+        return [PieceRead(**rec["piece"]) for rec in result]
 
 
 @router.get("/{piece_id}", response_model=PieceRead)
-def get_piece(puzzle_id: str, piece_id: str):
-    """Lee una pieza por su ID."""
+def get_piece(
+    puzzle_id: UUID = Path(...),
+    piece_id:  UUID = Path(..., description="UUID de la pieza")
+):
+    """Lee una pieza por su UUID."""
     with get_session() as session:
-        result = session.run("""
-            MATCH (p:Puzzle {puzzleId: $puzzle_id})-[:HAS_PIECE]->(piece:Piece {pieceId: $piece_id})
-            RETURN piece
-        """, puzzle_id=puzzle_id, piece_id=piece_id).single()
+        rec = session.run(
+            """
+            MATCH (p:Puzzle {puzzleId: $puzzle_id})
+                  -[:HAS_PIECE]->(piece:Piece {pieceId: $piece_id})
+            RETURN piece {.*, puzzleId: p.puzzleId} AS piece
+            """,
+            {
+                "puzzle_id": str(puzzle_id),
+                "piece_id":  str(piece_id)
+            }
+        ).single()
 
-        if not result:
-            raise HTTPException(status_code=404, detail="Pieza no encontrada.")
+        if not rec:
+            raise HTTPException(status_code=404, detail="Pieza no encontrada")
 
-        return PieceRead(**dict(result["piece"]))
+        return PieceRead(**rec["piece"])
 
 
 @router.patch("/{piece_id}", response_model=PieceRead)
-def update_piece(puzzle_id: str, piece_id: str, payload: PieceUpdate):
+def update_piece(
+    puzzle_id: UUID = Path(...),
+    piece_id:  UUID = Path(...),
+    payload:   PieceUpdate = ...
+):
     """Actualiza orientation, group o status de una pieza."""
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+
     with get_session() as session:
-        result = session.run("""
-            MATCH (p:Puzzle {puzzleId: $puzzle_id})-[:HAS_PIECE]->(piece:Piece {pieceId: $piece_id})
+        rec = session.run(
+            """
+            MATCH (p:Puzzle {puzzleId: $puzzle_id})
+                  -[:HAS_PIECE]->(piece:Piece {pieceId: $piece_id})
             SET piece += $fields
-            RETURN piece
-        """, puzzle_id=puzzle_id, piece_id=piece_id, fields=payload.dict(exclude_unset=True)).single()
+            RETURN piece {.*, puzzleId: p.puzzleId} AS piece
+            """,
+            {
+                "puzzle_id": str(puzzle_id),
+                "piece_id":  str(piece_id),
+                "fields":    fields
+            }
+        ).single()
 
-        if not result:
-            raise HTTPException(status_code=404, detail="Pieza no encontrada.")
+        if not rec:
+            raise HTTPException(status_code=404, detail="Pieza no encontrada")
 
-        return PieceRead(**dict(result["piece"]))
+        return PieceRead(**rec["piece"])
 
 
 @router.delete("/{piece_id}", status_code=204)
-def delete_piece(puzzle_id: str, piece_id: str):
+def delete_piece(
+    puzzle_id: UUID = Path(...),
+    piece_id:  UUID = Path(...)
+):
     """Elimina el nodo Piece y sus relaciones."""
     with get_session() as session:
-        result = session.run("""
-            MATCH (p:Puzzle {puzzleId: $puzzle_id})-[:HAS_PIECE]->(piece:Piece {pieceId: $piece_id})
+        rec = session.run(
+            """
+            MATCH (p:Puzzle {puzzleId: $puzzle_id})
+                  -[:HAS_PIECE]->(piece:Piece {pieceId: $piece_id})
             DETACH DELETE piece
             RETURN COUNT(piece) AS deleted
-        """, puzzle_id=puzzle_id, piece_id=piece_id).single()
+            """,
+            {
+                "puzzle_id": str(puzzle_id),
+                "piece_id":  str(piece_id)
+            }
+        ).single()
 
-        if result["deleted"] == 0:
-            raise HTTPException(status_code=404, detail="Pieza no encontrada.")
+        if not rec or rec["deleted"] == 0:
+            raise HTTPException(status_code=404, detail="Pieza no encontrada")
+    # status_code=204 implica body vacío
+    return None

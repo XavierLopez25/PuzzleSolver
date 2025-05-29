@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.dirname(__file__))
+
 import logging
 from fastapi import FastAPI
 from services.neo4j import get_driver, close_driver

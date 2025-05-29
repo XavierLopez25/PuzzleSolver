@@ -12,7 +12,6 @@ class PuzzleBase(BaseModel):
     puzzlePieceQty: int  # Cantidad total de piezas del rompecabezas
     puzzleMaterial: str  # Material del rompecabezas (ej. "Cartón", "Madera", etc.)
     row_size: Optional[int] = None  # Solo para puzzles regulares (número de piezas por fila)
-    column_size: Optional[int] = None  # Solo para puzzles regulares (número de columnas)
 
 
 # Modelo utilizado al crear un nuevo Puzzle
@@ -22,12 +21,12 @@ class PuzzleCreate(PuzzleBase):
 
 # Modelo utilizado para actualizar un Puzzle existente (campos opcionales)
 class PuzzleUpdate(BaseModel):
-    puzzleTypeIsRegular: Optional[bool]
-    puzzleTheme: Optional[str]
-    puzzleBrand: Optional[str]
-    puzzlePieceQty: Optional[int]
-    puzzleMaterial: Optional[str]
-    row_size: Optional[int]
+    puzzleTypeIsRegular: Optional[bool] = None
+    puzzleTheme: Optional[str]  = None
+    puzzleBrand: Optional[str]  = None
+    puzzlePieceQty: Optional[int]  = None
+    puzzleMaterial: Optional[str]  = None
+    row_size: Optional[int]  = None
 
 # Modelo utilizado para leer o devolver un Puzzle (incluye el ID)
 class PuzzleRead(PuzzleBase):

@@ -13,7 +13,7 @@ NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
 
 if not all([NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD]):
     raise ValueError(
-        "Por favor define las variables de entorno NEO4J_URI, NEO4J_USER y NEO4J_PWD"
+        "Por favor define las variables de entorno NEO4J_URI, NEO4J_USERNAME y NEO4J_PASSWORD"
     )
 
 # Singleton para el driver de Neo4j
